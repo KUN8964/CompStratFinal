@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>复合量化策略系统 — 可配置回测平台</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #F7931A;
+    --blue: #627EEA;
+    --purple: #9945FF;
+    --cyan: #00d4ff;
+    --accent: #00ff88;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+  
+  /* Header */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+  .badge { background: rgba(0,255,136,0.1); border: 1px solid var(--accent); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+  .nav { display: flex; gap: 4px; }
+  .nav a { color: var(--text-muted); text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; transition: all 0.2s; }
+  .nav a:hover, .nav a.active { background: var(--surface2); color: var(--text); }
+  
+  /* Main Layout */
+  .main { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+  
+  /* Sections */
+  .section { display: none; }
+  .section.active { display: block; }
+  
+  /* Stats Grid */
+  .stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .stat-card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .stat-card .value { font-size: 22px; font-weight: 700; }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.red { color: var(--red); }
+  .stat-card .value.orange { color: var(--orange); }
+  .stat-card .value.cyan { color: var(--cyan); }
+  .stat-card .value.accent { color: var(--accent); }
+  
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .card-title { font-size: 14px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title::before { content: ''; width: 3px; height: 14px; background: var(--accent); border-radius: 2px; display: inline-block; }
+  
+  /* Chart Container */
+  .chart-container { position: relative; height: 320px; }
+  .chart-container.tall { height: 420px; }
+  
+  /* Grid layouts */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  
+  /* Trades Table */
+  .table-wrapper { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--surface2); color: var(--text-muted); font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .pnl-pos { color: var(--green); font-weight: 600; }
+  .pnl-neg { color: var(--red); font-weight: 600; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .tag-btc { background: rgba(247,147,26,0.15); color: var(--orange); }
+  .tag-eth { background: rgba(98,126,234,0.15); color: var(--blue); }
+  .tag-sol { background: rgba(153,69,255,0.15); color: var(--purple); }
+  .tag-long { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag-short { background: rgba(248,81,73,0.15); color: var(--red); }
+  
+  /* Config Panel */
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .config-section { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .config-section h3 { font-size: 13px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .config-section h3 .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .config-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .config-row label { font-size: 12px; color: var(--text-muted); flex: 1; }
+  .config-row input[type="number"], .config-row input[type="text"] {
+    width: 120px; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 10px; border-radius: 6px; font-size: 13px; text-align: right;
+  }
+  .config-row input:focus { outline: none; border-color: var(--accent); }
+  .config-row input[type="range"] { width: 100px; accent-color: var(--accent); }
+  .config-row .range-val { width: 50px; text-align: right; font-size: 12px; color: var(--accent); }
+  .run-btn { width: 100%; padding: 14px; background: var(--accent); color: #000; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 20px; transition: opacity 0.2s; }
+  .run-btn:hover { opacity: 0.85; }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  
+  /* Strategy Cards */
+  .strategy-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .strategy-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+  .strategy-card .header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .strategy-card .icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .strategy-card h3 { font-size: 15px; font-weight: 700; }
+  .strategy-card p { font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+  .strategy-card .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .strategy-card .metric { background: var(--surface2); border-radius: 6px; padding: 8px 10px; }
+  .strategy-card .metric .k { font-size: 10px; color: var(--text-muted); }
+  .strategy-card .metric .v { font-size: 14px; font-weight: 700; }
+  
+  /* Signal flow diagram */
+  .flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin: 16px 0; }
+  .flow-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 12px; text-align: center; min-width: 100px; }
+  .flow-arrow { color: var(--text-muted); padding: 0 8px; font-size: 18px; }
+  .flow-box.highlight { border-color: var(--accent); color: var(--accent); }
+  .flow-box.orange { border-color: var(--orange); color: var(--orange); }
+  .flow-box.blue { border-color: var(--blue); color: var(--blue); }
+  .flow-box.red { border-color: var(--red); color: var(--red); }
+  
+  /* Annual returns bar */
+  .annual-bar { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding: 0 4px; }
+  .ann-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .ann-bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 4px; transition: height 0.5s; }
+  .ann-label { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+  .ann-val { font-size: 10px; font-weight: 600; margin-bottom: 2px; }
+  
+  /* Drawdown chart */
+  .dd-bar { height: 6px; border-radius: 3px; background: var(--red); margin: 2px 0; }
+  
+  /* Tooltip */
+  .tooltip { position: relative; display: inline-block; }
+  .tooltip .tip { visibility: hidden; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 12px; position: absolute; z-index: 1; bottom: 125%; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+  .tooltip:hover .tip { visibility: visible; }
+  
+  /* Loading indicator */
+  .loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; padding: 20px 0; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  /* Responsive */
+  @media (max-width: 900px) {
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    .grid-2, .config-grid, .strategy-cards { grid-template-columns: 1fr; }
+    .main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">⚡ COMPOSITE STRATEGY</span>
+    <span class="badge">BACKTEST RESULTS</span>
+  </div>
+  <nav class="nav">
+    <a href="#" class="active" onclick="showSection('overview', this)">概览</a>
+    <a href="#" onclick="showSection('equity', this)">净值曲线</a>
+    <a href="#" onclick="showSection('trades', this)">交易记录</a>
+    <a href="#" onclick="showSection('config', this)">参数配置</a>
+    <a href="#" onclick="showSection('strategy', this)">策略说明</a>
+  </nav>
+</div>
+
+<div class="main">
+
+  <!-- ═══════════════════════════ OVERVIEW ═══════════════════════════ -->
+  <div id="section-overview" class="section active">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">组合总收益</div>
+        <div class="value accent">+48.14%</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">年化收益</div>
+        <div class="value green">+6.59%</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">最大回撤</div>
+        <div class="value red">-10.98%</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">夏普比率</div>
+        <div class="value cyan">0.802</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">总交易次数</div>
+        <div class="value">23</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">期末净值</div>
+        <div class="value orange">$14,814</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">子策略绩效对比</div>
+        <table>
+          <thead>
+            <tr><th>策略</th><th>总收益</th><th>年化</th><th>最大回撤</th><th>夏普</th><th>胜率</th><th>盈利因子</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag tag-btc">BTC 多头</span></td>
+              <td class="pnl-pos">+73.59%</td>
+              <td class="pnl-pos">+10.32%</td>
+              <td class="pnl-neg">-14.14%</td>
+              <td>0.766</td>
+              <td>43.8%</td>
+              <td>8.248</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-eth">ETH 空头</span></td>
+              <td class="pnl-pos">+42.77%</td>
+              <td class="pnl-pos">+5.95%</td>
+              <td class="pnl-neg">-6.38%</td>
+              <td>0.698</td>
+              <td>100%</td>
+              <td>∞</td>
+            </tr>
+            <tr>
+              <td><span class="tag tag-sol">SOL 空头</span></td>
+              <td class="pnl-pos">+2.61%</td>
+              <td class="pnl-pos">+0.47%</td>
+              <td class="pnl-neg">-13.50%</td>
+              <td>0.081</td>
+              <td>50.0%</td>
+              <td>1.171</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">逐年收益率</div>
+        <div id="annual-chart-container" style="height:200px;">
+          <canvas id="annualChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">资金分配</div>
+        <div style="height:200px;"><canvas id="allocationChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">每笔交易盈亏分布</div>
+        <div style="height:200px;"><canvas id="pnlDistChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════ EQUITY CURVE ═══════════════════════════ -->
+  <div id="section-equity" class="section">
+    <div class="card">
+      <div class="card-title">组合净值曲线（2020 — 2026）</div>
+      <div class="chart-container tall"><canvas id="equityChart"></canvas></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">各子策略净值</div>
+        <div class="chart-container"><canvas id="subEquityChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">回撤曲线</div>
+        <div class="chart-container"><canvas id="drawdownChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════ TRADES ═══════════════════════════ -->
+  <div id="section-trades" class="section">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+      <div class="stat-card">
+        <div class="label">BTC 交易次数</div>
+        <div class="value orange">16</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">ETH 交易次数</div>
+        <div class="value" style="color:var(--blue)">3</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">SOL 交易次数</div>
+        <div class="value" style="color:var(--purple)">4</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">平均持仓天数</div>
+        <div class="value cyan">48.5</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">完整交易记录</div>
+      <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="filter-btn active" onclick="filterTrades('all', this)">全部 (23)</button>
+        <button class="filter-btn" onclick="filterTrades('BTC/USDT', this)">BTC (16)</button>
+        <button class="filter-btn" onclick="filterTrades('ETH/USDT', this)">ETH (3)</button>
+        <button class="filter-btn" onclick="filterTrades('SOL/USDT', this)">SOL (4)</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="tradesTable">
+          <thead>
+            <tr><th>#</th><th>标的</th><th>策略</th><th>入场日期</th><th>出场日期</th><th>入场价</th><th>出场价</th><th>持仓天数</th><th>盈亏 (USDT)</th><th>盈亏率</th><th>出场原因</th></tr>
+          </thead>
+          <tbody id="tradesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════ CONFIG ═══════════════════════════ -->
+  <div id="section-config" class="section">
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title">参数配置说明</div>
+      <p style="color:var(--text-muted);font-size:13px;line-height:1.8;">
+        以下参数对应 <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;">config.py</code> 中的 <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;">default_config</code> 字典。
+        修改后点击「生成配置文件」可下载 JSON 配置，传入 <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;">python3 run_backtest.py config.json</code> 运行回测。
+      </p>
+    </div>
+    <div class="config-grid">
+      <!-- General -->
+      <div class="config-section">
+        <h3><span class="dot" style="background:#00ff88;"></span> 全局参数</h3>
+        <div class="config-row"><label>初始资金 (USDT)</label><input type="number" id="cfg_init_cash" value="10000" step="1000"></div>
+        <div class="config-row"><label>手续费率</label><input type="number" id="cfg_fee" value="0.0005" step="0.0001"></div>
+        <div class="config-row"><label>回测起始日期</label><input type="text" id="cfg_since" value="2020-01-01T00:00:00Z"></div>
+        
+        <h3 style="margin-top:20px;"><span class="dot" style="background:var(--orange);"></span> BTC 海龟做多参数</h3>
+        <div class="config-row"><label>资金占比 (%)</label><input type="range" id="cfg_btc_pct" min="10" max="80" value="50" oninput="document.getElementById('cfg_btc_pct_val').textContent=this.value+'%'"><span class="range-val" id="cfg_btc_pct_val">50%</span></div>
+        <div class="config-row"><label>杠杆倍数</label><input type="number" id="cfg_btc_lev" value="2.0" step="0.5" min="1" max="5"></div>
+        <div class="config-row"><label>入场突破窗口 (日)</label><input type="number" id="cfg_btc_entry_win" value="55" step="5" min="10"></div>
+        <div class="config-row"><label>牛市出场窗口 (日)</label><input type="number" id="cfg_btc_exit_bull" value="25" step="5" min="5"></div>
+        <div class="config-row"><label>熊市出场窗口 (日)</label><input type="number" id="cfg_btc_exit_bear" value="15" step="5" min="5"></div>
+        <div class="config-row"><label>ADX 过滤阈值</label><input type="number" id="cfg_btc_adx" value="18" step="1" min="0"></div>
+        <div class="config-row"><label>最大加仓次数</label><input type="number" id="cfg_btc_max_units" value="3" step="1" min="1" max="5"></div>
+        <div class="config-row"><label>最小风险比例</label><input type="number" id="cfg_btc_risk_min" value="0.005" step="0.001"></div>
+        <div class="config-row"><label>最大风险比例</label><input type="number" id="cfg_btc_risk_max" value="0.03" step="0.005"></div>
+      </div>
+
+      <!-- Alt Short -->
+      <div class="config-section">
+        <h3><span class="dot" style="background:var(--red);"></span> ETH/SOL OBV 做空参数</h3>
+        <div class="config-row"><label>各标的资金占比 (%)</label><input type="range" id="cfg_alt_pct" min="5" max="40" value="25" oninput="document.getElementById('cfg_alt_pct_val').textContent=this.value+'%'"><span class="range-val" id="cfg_alt_pct_val">25%</span></div>
+        <div class="config-row"><label>杠杆倍数</label><input type="number" id="cfg_alt_lev" value="1.0" step="0.5" min="1" max="3"></div>
+        <div class="config-row"><label>单笔仓位比例</label><input type="number" id="cfg_alt_pos_pct" value="0.50" step="0.05"></div>
+        <div class="config-row"><label>止损比例</label><input type="number" id="cfg_alt_sl" value="0.15" step="0.01"></div>
+        <div class="config-row"><label>移动止盈触发比例</label><input type="number" id="cfg_alt_trail" value="0.20" step="0.01"></div>
+        <div class="config-row"><label>摆动窗口 (日)</label><input type="number" id="cfg_alt_swing" value="10" step="1" min="3"></div>
+        <div class="config-row"><label>最大回溯天数</label><input type="number" id="cfg_alt_lookback" value="120" step="10" min="30"></div>
+        <div class="config-row"><label>最小涨幅确认</label><input type="number" id="cfg_alt_min_rise" value="0.05" step="0.01"></div>
+        <div class="config-row"><label>下跌确认比例</label><input type="number" id="cfg_alt_drop" value="0.20" step="0.01"></div>
+
+        <div style="margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;font-weight:600;">生成的配置文件预览</div>
+          <pre id="configPreview" style="font-size:11px;color:var(--cyan);line-height:1.7;overflow:auto;max-height:200px;"></pre>
+        </div>
+      </div>
+    </div>
+
+    <button class="run-btn" onclick="generateConfig()">📥 生成 config.json 并下载</button>
+    
+    <div style="margin-top:16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;">运行回测命令</div>
+      <code style="font-size:12px;color:var(--green);">
+        # 使用默认配置<br>
+        python3 run_backtest.py<br><br>
+        # 使用自定义配置<br>
+        python3 run_backtest.py config.json<br><br>
+        # 输出文件位置<br>
+        data_output/report.png &nbsp;&nbsp;&nbsp;&nbsp;# 完整报告图<br>
+        data_output/trades.csv &nbsp;&nbsp;&nbsp;&nbsp;# 交易记录
+      </code>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════ STRATEGY ═══════════════════════════ -->
+  <div id="section-strategy" class="section">
+    <div class="strategy-cards">
+      <div class="strategy-card">
+        <div class="header-row">
+          <div class="icon" style="background:rgba(247,147,26,0.15);">₿</div>
+          <div>
+            <h3 style="color:var(--orange);">BTC 海龟趋势跟踪（只做多）</h3>
+            <div style="font-size:11px;color:var(--text-muted);">占总资金 50% · 2x 杠杆</div>
+          </div>
+        </div>
+        <p>基于经典海龟交易系统改进：当 BTC 价格突破 <strong>55日最高点</strong>，且处于 MA200 上方（牛市确认），ADX > 18（趋势强度过滤），触发做多入场。采用<strong>凯利公式</strong>动态计算仓位大小（0.5%~3%风险/笔），最多允许 3 次加仓（每次间隔 0.75 ATR）。出场采用通道突破：牛市用 25 日低点，熊市用 15 日低点。</p>
+        <div class="metrics">
+          <div class="metric"><div class="k">总收益</div><div class="v" style="color:var(--green)">+73.59%</div></div>
+          <div class="metric"><div class="k">年化收益</div><div class="v" style="color:var(--green)">+10.32%</div></div>
+          <div class="metric"><div class="k">最大回撤</div><div class="v" style="color:var(--red)">-14.14%</div></div>
+          <div class="metric"><div class="k">盈利因子</div><div class="v" style="color:var(--cyan)">8.248</div></div>
+        </div>
+      </div>
+
+      <div class="strategy-card">
+        <div class="header-row">
+          <div class="icon" style="background:rgba(248,81,73,0.15);">↓</div>
+          <div>
+            <h3 style="color:var(--red);">ETH/SOL OBV 顶背离做空（只做空）</h3>
+            <div style="font-size:11px;color:var(--text-muted);">各占总资金 25% · 1x 杠杆</div>
+          </div>
+        </div>
+        <p>使用<strong>OBV（能量潮）顶背离</strong>识别山寨币局部顶部：当价格创新高但 OBV 未创新高时，形成顶背离信号。随后等待价格从高点<strong>下跌 20%</strong> 作为双重确认后入场做空。止损设置在入场价上方 15%，移动止盈在最低点反弹 20% 时触发。每笔使用 50% 可用资金。</p>
+        <div class="metrics">
+          <div class="metric"><div class="k">ETH 总收益</div><div class="v" style="color:var(--green)">+42.77%</div></div>
+          <div class="metric"><div class="k">SOL 总收益</div><div class="v" style="color:var(--green)">+2.61%</div></div>
+          <div class="metric"><div class="k">ETH 胜率</div><div class="v" style="color:var(--cyan)">100%</div></div>
+          <div class="metric"><div class="k">SOL 胜率</div><div class="v" style="color:var(--cyan)">50%</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">BTC 海龟策略信号流程</div>
+      <div class="flow">
+        <div class="flow-box orange">价格突破<br>55日高点</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">MA200<br>上方确认</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">ADX &gt; 18<br>趋势过滤</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box highlight">凯利公式<br>仓位计算</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">做多入场<br>2x 杠杆</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box red">通道突破<br>出场</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">ETH/SOL OBV 做空信号流程</div>
+      <div class="flow">
+        <div class="flow-box blue">价格创新高<br>（局部极值）</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box red">OBV 未创新高<br>（顶背离）</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">等待价格<br>下跌 20%</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box highlight">双重确认<br>做空入场</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box red">15% 止损 /<br>移动止盈</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">资金分配逻辑</div>
+        <table>
+          <tr><th>策略</th><th>标的</th><th>资金占比</th><th>杠杆</th><th>方向</th></tr>
+          <tr><td>海龟趋势</td><td><span class="tag tag-btc">BTC/USDT</span></td><td>50%</td><td>2x</td><td><span class="tag tag-long">只做多</span></td></tr>
+          <tr><td>OBV做空</td><td><span class="tag tag-eth">ETH/USDT</span></td><td>25%</td><td>1x</td><td><span class="tag tag-short">只做空</span></td></tr>
+          <tr><td>OBV做空</td><td><span class="tag tag-sol">SOL/USDT</span></td><td>25%</td><td>1x</td><td><span class="tag tag-short">只做空</span></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">风险控制参数</div>
+        <table>
+          <tr><th>参数</th><th>值</th><th>说明</th></tr>
+          <tr><td>BTC 单笔风险</td><td style="color:var(--green)">0.5%~3%</td><td>凯利公式动态</td></tr>
+          <tr><td>BTC 最大加仓</td><td style="color:var(--orange)">3 次</td><td>间隔 0.75 ATR</td></tr>
+          <tr><td>ALT 止损</td><td style="color:var(--red)">15%</td><td>固定止损</td></tr>
+          <tr><td>ALT 移动止盈</td><td style="color:var(--cyan)">20%</td><td>从最低点反弹</td></tr>
+          <tr><td>手续费</td><td>0.05%</td><td>双边</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end main -->
+
+<style>
+  .filter-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.08); }
+  code { font-family: 'Consolas', 'Courier New', monospace; }
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
+const TRADES = [
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2020-07-27",date_out:"2020-09-03",price_in:11029.96,price_out:11117.64,pnl:-24.64,pnl_pct:-9.26,reason:"Channel Exit",hold_days:38},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2020-10-21",date_out:"2021-04-22",price_in:12780.96,price_out:50931.3,pnl:3004.41,pnl_pct:1147.12,reason:"Channel Exit",hold_days:183},
+  {symbol:"SOL/USDT",strategy:"OBV Short",date_in:"2021-05-19",date_out:"2021-05-20",price_in:34.988,price_out:40.236,pnl:-188.22,pnl_pct:-15.06,reason:"15% Stop Loss",hold_days:1},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2021-08-09",date_out:"2021-09-07",price_in:46253.4,price_out:43927.7,pnl:-175.32,pnl_pct:-41.53,reason:"Channel Exit",hold_days:29},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2021-09-07",date_out:"2021-09-20",price_in:46863.73,price_out:42843.05,pnl:-47.6,pnl_pct:-34.32,reason:"Channel Exit",hold_days:13},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2021-10-06",date_out:"2021-11-18",price_in:55315.0,price_out:57820.0,pnl:-6.88,pnl_pct:-1.58,reason:"Channel Exit",hold_days:43},
+  {symbol:"ETH/USDT",strategy:"OBV Short",date_in:"2021-12-13",date_out:"2022-01-29",price_in:3781.93,price_out:2590.8,pnl:393.26,pnl_pct:31.46,reason:"Trailing Stop",hold_days:47},
+  {symbol:"SOL/USDT",strategy:"OBV Short",date_in:"2022-01-05",date_out:"2022-01-31",price_in:154.52,price_out:96.996,pnl:429.83,pnl_pct:37.2,reason:"Trailing Stop",hold_days:26},
+  {symbol:"SOL/USDT",strategy:"OBV Short",date_in:"2022-02-13",date_out:"2022-02-25",price_in:92.85,price_out:90.42,pnl:35.19,pnl_pct:2.57,reason:"Trailing Stop",hold_days:12},
+  {symbol:"ETH/USDT",strategy:"OBV Short",date_in:"2022-06-10",date_out:"2022-06-15",price_in:1662.91,price_out:1217.28,pnl:387.06,pnl_pct:26.76,reason:"Trailing Stop",hold_days:5},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2023-01-13",date_out:"2023-03-09",price_in:19930.01,price_out:21351.07,pnl:9.22,pnl_pct:4.21,reason:"Channel Exit",hold_days:55},
+  {symbol:"SOL/USDT",strategy:"OBV Short",date_in:"2023-02-09",date_out:"2023-02-15",price_in:20.48,price_out:23.552,pnl:-208.92,pnl_pct:-15.06,reason:"15% Stop Loss",hold_days:6},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2023-03-14",date_out:"2023-04-24",price_in:24670.41,price_out:27125.0,pnl:16.27,pnl_pct:5.58,reason:"Channel Exit",hold_days:41},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2023-06-21",date_out:"2023-07-24",price_in:29993.89,price_out:29500.0,pnl:-32.56,pnl_pct:-13.93,reason:"Channel Exit",hold_days:33},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2023-10-16",date_out:"2024-01-18",price_in:28500.78,price_out:40750.0,pnl:436.12,pnl_pct:137.85,reason:"Channel Exit",hold_days:94},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2024-02-12",date_out:"2024-04-13",price_in:49917.27,price_out:60775.0,pnl:252.85,pnl_pct:67.47,reason:"Channel Exit",hold_days:61},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2024-06-07",date_out:"2024-06-14",price_in:69355.6,price_out:66051.0,pnl:-26.76,pnl_pct:-19.06,reason:"Channel Exit",hold_days:7},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2024-09-26",date_out:"2024-10-10",price_in:65173.99,price_out:59828.11,pnl:-42.48,pnl_pct:-32.81,reason:"Channel Exit",hold_days:14},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2024-10-18",date_out:"2025-01-09",price_in:68428.0,price_out:91530.45,pnl:431.33,pnl_pct:120.54,reason:"Channel Exit",hold_days:83},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2025-04-25",date_out:"2025-06-05",price_in:94638.68,price_out:100718.37,pnl:42.21,pnl_pct:10.49,reason:"Channel Exit",hold_days:41},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2025-07-13",date_out:"2025-08-22",price_in:119086.64,price_out:111920.0,pnl:-87.81,pnl_pct:-30.51,reason:"Channel Exit",hold_days:40},
+  {symbol:"BTC/USDT",strategy:"Turtle Long",date_in:"2025-10-05",date_out:"2025-10-10",price_in:123482.31,price_out:108620.07,pnl:-64.26,pnl_pct:-48.14,reason:"Channel Exit",hold_days:5},
+  {symbol:"ETH/USDT",strategy:"OBV Short",date_in:"2025-10-10",date_out:"2025-12-03",price_in:3829.72,price_out:3148.284,pnl:291.05,pnl_pct:17.75,reason:"Trailing Stop",hold_days:54},
+];
+
+// ═══════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════
+function showSection(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'equity') initEquityCharts();
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════════════════════
+const chartDefaults = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } } }, tooltip: { backgroundColor: '#1c2128', borderColor: '#30363d', borderWidth: 1, titleColor: '#e6edf3', bodyColor: '#8b949e' } },
+  scales: {
+    x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(48,54,61,0.5)' } },
+    y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(48,54,61,0.5)' } }
+  }
+};
+
+// Annual returns chart
+const annualData = [
+  { year: 2020, ret: 12.3 }, { year: 2021, ret: 11.8 }, { year: 2022, ret: 9.9 },
+  { year: 2023, ret: 2.0 }, { year: 2024, ret: 3.6 }, { year: 2025, ret: 0.8 }, { year: 2026, ret: 0.0 }
+];
+new Chart(document.getElementById('annualChart'), {
+  type: 'bar',
+  data: {
+    labels: annualData.map(d => d.year),
+    datasets: [{
+      data: annualData.map(d => d.ret),
+      backgroundColor: annualData.map(d => d.ret >= 0 ? 'rgba(63,185,80,0.7)' : 'rgba(248,81,73,0.7)'),
+      borderColor: annualData.map(d => d.ret >= 0 ? '#3fb950' : '#f85149'),
+      borderWidth: 1, borderRadius: 4,
+    }]
+  },
+  options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, legend: { display: false }, datalabels: { display: false } }, scales: { x: { ...chartDefaults.scales.x }, y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => v + '%' } } } }
+});
+
+// Allocation chart
+new Chart(document.getElementById('allocationChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['BTC 多头 (50%)', 'ETH 空头 (25%)', 'SOL 空头 (25%)'],
+    datasets: [{ data: [50, 25, 25], backgroundColor: ['rgba(247,147,26,0.8)', 'rgba(98,126,234,0.8)', 'rgba(153,69,255,0.8)'], borderColor: ['#F7931A', '#627EEA', '#9945FF'], borderWidth: 2 }]
+  },
+  options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#8b949e', font: { size: 11 } } } } }
+});
+
+// PnL distribution chart
+const pnls = TRADES.map(t => t.pnl);
+new Chart(document.getElementById('pnlDistChart'), {
+  type: 'bar',
+  data: {
+    labels: TRADES.map((_, i) => i + 1),
+    datasets: [{
+      data: pnls,
+      backgroundColor: pnls.map(p => p > 0 ? 'rgba(63,185,80,0.7)' : 'rgba(248,81,73,0.7)'),
+      borderColor: pnls.map(p => p > 0 ? '#3fb950' : '#f85149'),
+      borderWidth: 1, borderRadius: 2,
+    }]
+  },
+  options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, legend: { display: false } }, scales: { x: { ...chartDefaults.scales.x, title: { display: true, text: '交易序号', color: '#8b949e' } }, y: { ...chartDefaults.scales.y, title: { display: true, text: 'PnL (USDT)', color: '#8b949e' } } } }
+});
+
+// Equity charts (lazy loaded)
+let equityChartsInited = false;
+function initEquityCharts() {
+  if (equityChartsInited) return;
+  equityChartsInited = true;
+
+  // Simulated equity data based on real backtest results
+  const dates = [];
+  const portfolio = [], btc = [], eth = [], sol = [];
+  const start = new Date('2020-01-01');
+  let p = 10000, b = 5000, e = 2500, s = 2500;
+  
+  // Use actual trade data to build equity curves
+  const btcTrades = TRADES.filter(t => t.symbol === 'BTC/USDT').sort((a,b) => new Date(a.date_in) - new Date(b.date_in));
+  const ethTrades = TRADES.filter(t => t.symbol === 'ETH/USDT').sort((a,b) => new Date(a.date_in) - new Date(b.date_in));
+  const solTrades = TRADES.filter(t => t.symbol === 'SOL/USDT').sort((a,b) => new Date(a.date_in) - new Date(b.date_in));
+  
+  // Build equity series from trades
+  const allDates = [];
+  const cur = new Date('2020-01-01');
+  const end = new Date('2026-02-28');
+  while (cur <= end) {
+    allDates.push(new Date(cur));
+    cur.setDate(cur.getDate() + 7);
+  }
+  
+  let btcEq = 5000, ethEq = 2500, solEq = 2500;
+  const btcEvents = {}, ethEvents = {}, solEvents = {};
+  btcTrades.forEach(t => { btcEvents[t.date_out] = (btcEvents[t.date_out] || 0) + t.pnl; });
+  ethTrades.forEach(t => { ethEvents[t.date_out] = (ethEvents[t.date_out] || 0) + t.pnl; });
+  solTrades.forEach(t => { solEvents[t.date_out] = (solEvents[t.date_out] || 0) + t.pnl; });
+  
+  const portfolioData = [], btcData = [], ethData = [], solData = [], dateLabels = [];
+  allDates.forEach(d => {
+    const ds = d.toISOString().slice(0, 10);
+    if (btcEvents[ds]) btcEq += btcEvents[ds];
+    if (ethEvents[ds]) ethEq += ethEvents[ds];
+    if (solEvents[ds]) solEq += solEvents[ds];
+    dateLabels.push(ds);
+    btcData.push(Math.max(btcEq, 1));
+    ethData.push(Math.max(ethEq, 1));
+    solData.push(Math.max(solEq, 1));
+    portfolioData.push(Math.max(btcEq + ethEq + solEq, 1));
+  });
+
+  const timeScaleOpts = { type: 'time', time: { unit: 'month', tooltipFormat: 'yyyy-MM-dd' }, ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(48,54,61,0.5)' } };
+
+  // Main equity chart
+  new Chart(document.getElementById('equityChart'), {
+    type: 'line',
+    data: {
+      labels: dateLabels,
+      datasets: [{ label: '组合净值', data: portfolioData, borderColor: '#00ff88', backgroundColor: 'rgba(0,255,136,0.05)', borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } }, tooltip: { backgroundColor: '#1c2128', borderColor: '#30363d', borderWidth: 1, titleColor: '#e6edf3', bodyColor: '#8b949e' } },
+      scales: { x: timeScaleOpts, y: { ticks: { color: '#8b949e', callback: v => '$' + v.toLocaleString() }, grid: { color: 'rgba(48,54,61,0.5)' } } }
+    }
+  });
+
+  // Sub-strategy equity chart
+  new Chart(document.getElementById('subEquityChart'), {
+    type: 'line',
+    data: {
+      labels: dateLabels,
+      datasets: [
+        { label: 'BTC 多头', data: btcData, borderColor: '#F7931A', borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+        { label: 'ETH 空头', data: ethData, borderColor: '#627EEA', borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+        { label: 'SOL 空头', data: solData, borderColor: '#9945FF', borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } } }, tooltip: { backgroundColor: '#1c2128', borderColor: '#30363d', borderWidth: 1, titleColor: '#e6edf3', bodyColor: '#8b949e' } },
+      scales: { x: timeScaleOpts, y: { ticks: { color: '#8b949e', callback: v => '$' + v.toLocaleString() }, grid: { color: 'rgba(48,54,61,0.5)' } } }
+    }
+  });
+
+  // Drawdown chart
+  const ddData = portfolioData.map((v, i) => {
+    const peak = Math.max(...portfolioData.slice(0, i + 1));
+    return ((v - peak) / peak * 100).toFixed(2);
+  });
+  new Chart(document.getElementById('drawdownChart'), {
+    type: 'line',
+    data: {
+      labels: dateLabels,
+      datasets: [{ label: '回撤', data: ddData, borderColor: '#f85149', backgroundColor: 'rgba(248,81,73,0.1)', borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.2 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } }, tooltip: { backgroundColor: '#1c2128', borderColor: '#30363d', borderWidth: 1, titleColor: '#e6edf3', bodyColor: '#8b949e' } },
+      scales: { x: timeScaleOpts, y: { ticks: { color: '#8b949e', callback: v => v + '%' }, grid: { color: 'rgba(48,54,61,0.5)' } } }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// TRADES TABLE
+// ═══════════════════════════════════════════════════════════
+function renderTrades(filter) {
+  const tbody = document.getElementById('tradesBody');
+  const filtered = filter === 'all' ? TRADES : TRADES.filter(t => t.symbol === filter);
+  tbody.innerHTML = filtered.map((t, i) => {
+    const symClass = t.symbol === 'BTC/USDT' ? 'tag-btc' : t.symbol === 'ETH/USDT' ? 'tag-eth' : 'tag-sol';
+    const stratClass = t.strategy.includes('Long') ? 'tag-long' : 'tag-short';
+    const pnlClass = t.pnl > 0 ? 'pnl-pos' : 'pnl-neg';
+    const pnlSign = t.pnl > 0 ? '+' : '';
+    return `<tr>
+      <td style="color:var(--text-muted)">${i + 1}</td>
+      <td><span class="tag ${symClass}">${t.symbol}</span></td>
+      <td><span class="tag ${stratClass}">${t.strategy}</span></td>
+      <td>${t.date_in}</td>
+      <td>${t.date_out}</td>
+      <td>$${t.price_in.toLocaleString()}</td>
+      <td>$${t.price_out.toLocaleString()}</td>
+      <td>${t.hold_days}d</td>
+      <td class="${pnlClass}">${pnlSign}$${t.pnl.toFixed(2)}</td>
+      <td class="${pnlClass}">${pnlSign}${t.pnl_pct.toFixed(2)}%</td>
+      <td style="color:var(--text-muted)">${t.reason}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterTrades(filter, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTrades(filter);
+}
+
+renderTrades('all');
+
+// ═══════════════════════════════════════════════════════════
+// CONFIG GENERATOR
+// ═══════════════════════════════════════════════════════════
+function getConfig() {
+  const initCash = parseFloat(document.getElementById('cfg_init_cash').value);
+  const btcPct = parseInt(document.getElementById('cfg_btc_pct').value) / 100;
+  const altPct = parseInt(document.getElementById('cfg_alt_pct').value) / 100;
+  return {
+    general: {
+      init_cash: initCash,
+      fee: parseFloat(document.getElementById('cfg_fee').value),
+      since: document.getElementById('cfg_since').value
+    },
+    btc_turtle: {
+      init_cash: Math.round(initCash * btcPct),
+      leverage: parseFloat(document.getElementById('cfg_btc_lev').value),
+      entry_window: parseInt(document.getElementById('cfg_btc_entry_win').value),
+      exit_window_bull: parseInt(document.getElementById('cfg_btc_exit_bull').value),
+      exit_window_bear: parseInt(document.getElementById('cfg_btc_exit_bear').value),
+      adx_threshold: parseInt(document.getElementById('cfg_btc_adx').value),
+      add_on_n_atr: 0.75,
+      max_units: parseInt(document.getElementById('cfg_btc_max_units').value),
+      risk_min: parseFloat(document.getElementById('cfg_btc_risk_min').value),
+      risk_max: parseFloat(document.getElementById('cfg_btc_risk_max').value)
+    },
+    alt_obv_short: {
+      init_cash: Math.round(initCash * altPct),
+      leverage: parseFloat(document.getElementById('cfg_alt_lev').value),
+      position_size_pct: parseFloat(document.getElementById('cfg_alt_pos_pct').value),
+      stop_loss_pct: parseFloat(document.getElementById('cfg_alt_sl').value),
+      trailing_stop_pct: parseFloat(document.getElementById('cfg_alt_trail').value),
+      swing_window: parseInt(document.getElementById('cfg_alt_swing').value),
+      max_lookback_days: parseInt(document.getElementById('cfg_alt_lookback').value),
+      min_rise_pct: parseFloat(document.getElementById('cfg_alt_min_rise').value),
+      confirmation_drop_pct: parseFloat(document.getElementById('cfg_alt_drop').value)
+    }
+  };
+}
+
+function updatePreview() {
+  const cfg = getConfig();
+  document.getElementById('configPreview').textContent = JSON.stringify(cfg, null, 2);
+}
+
+// Update preview on any input change
+document.querySelectorAll('#section-config input').forEach(el => {
+  el.addEventListener('input', updatePreview);
+});
+
+function generateConfig() {
+  const cfg = getConfig();
+  const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'config.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Initialize preview
+updatePreview();
+</script>
+</body>
+</html>

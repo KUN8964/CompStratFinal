@@ -1,0 +1,28 @@
+# Local dependencies and virtual environments
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Local caches
+.npm-cache/
+.corepack/
+.matplotlib/
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+
+# Logs and temporary files
+*.log
+*.tmp
+tmp/
+temp/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Build output can be regenerated
+composite-strategy-web/dist/

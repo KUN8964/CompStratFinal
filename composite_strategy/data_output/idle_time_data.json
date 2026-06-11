@@ -1,0 +1,61 @@
+{
+  "total_days": 2250,
+  "data": {
+    "BNB/USDT": {
+      "trades": 8,
+      "invested_days": 90,
+      "idle_days": 2160,
+      "invested_pct": 4.0,
+      "idle_pct": 96.0,
+      "avg_hold": 11.2
+    },
+    "BTC/USDT": {
+      "trades": 33,
+      "invested_days": 700,
+      "idle_days": 1550,
+      "invested_pct": 31.1,
+      "idle_pct": 68.9,
+      "avg_hold": 21.2
+    },
+    "DOGE/USDT": {
+      "trades": 3,
+      "invested_days": 23,
+      "idle_days": 2227,
+      "invested_pct": 1.0,
+      "idle_pct": 99.0,
+      "avg_hold": 7.7
+    },
+    "ETH/USDT": {
+      "trades": 12,
+      "invested_days": 154,
+      "idle_days": 2096,
+      "invested_pct": 6.8,
+      "idle_pct": 93.2,
+      "avg_hold": 12.8
+    },
+    "LINK/USDT": {
+      "trades": 17,
+      "invested_days": 71,
+      "idle_days": 2179,
+      "invested_pct": 3.2,
+      "idle_pct": 96.8,
+      "avg_hold": 4.2
+    },
+    "SOL/USDT": {
+      "trades": 8,
+      "invested_days": 56,
+      "idle_days": 2194,
+      "invested_pct": 2.5,
+      "idle_pct": 97.5,
+      "avg_hold": 7.0
+    },
+    "PORTFOLIO": {
+      "trades": 81,
+      "invested_days": 985,
+      "idle_days": 1265,
+      "invested_pct": 43.8,
+      "idle_pct": 56.2,
+      "avg_hold": 13.5
+    }
+  }
+}

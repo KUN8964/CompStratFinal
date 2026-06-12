@@ -1,25 +1,7 @@
 import numpy as np
 import pandas as pd
-from utils.indicators import calc_obv
+from utils.indicators import calc_obv, find_peaks
 
-
-def find_peaks(values, distance=1, prominence=0):
-    """Small local-maximum detector used when scipy is unavailable."""
-    arr = np.asarray(values, dtype=float)
-    peaks = []
-    last_peak = -distance
-    for i in range(1, len(arr) - 1):
-        if i - last_peak < distance:
-            continue
-        if arr[i] <= arr[i - 1] or arr[i] <= arr[i + 1]:
-            continue
-        left_min = arr[max(0, i - distance):i].min() if i > 0 else arr[i]
-        right_min = arr[i + 1:min(len(arr), i + 1 + distance)].min() if i + 1 < len(arr) else arr[i]
-        if arr[i] - max(left_min, right_min) < prominence:
-            continue
-        peaks.append(i)
-        last_peak = i
-    return np.asarray(peaks, dtype=int), {}
 
 class AltObvShortStrategy:
     def __init__(self, strategy_config, general_config):

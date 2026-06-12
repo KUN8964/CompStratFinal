@@ -83,8 +83,10 @@ def require_env(key: str) -> str:
     val = os.environ.get(key)
     if not val:
         raise EnvironmentError(
-            f"Required environment variable '{key}' is not set. "
-            f"Please add it to your .env file or environment."
+            f"缺少必需的环境变量: {key}\n"
+            f"请在项目根目录 .env 文件中添加: {key}=<your_value>\n"
+            f"示例: echo '{key}=xxx' >> .env\n"
+            f"更多配置说明请参考 README.md"
         )
     return val
 

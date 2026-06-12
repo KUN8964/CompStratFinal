@@ -248,3 +248,28 @@ def calc_adx(
         if offset + i < n:
             adx[offset + i] = v
     return adx
+
+
+# ─── Peak Detection ────────────────────────────────────────
+# Extracted from strategies/alt_obv_short.py — utility, not strategy logic
+
+
+def find_peaks(values, distance=1, prominence=0):
+    """Small local-maximum detector. Use scipy.signal.find_peaks when available."""
+    arr = np.asarray(values, dtype=float)
+    peaks = []
+    last_peak = -distance
+    for i in range(1, len(arr) - 1):
+        if i - last_peak < distance:
+            continue
+        if arr[i] <= arr[i - 1] or arr[i] <= arr[i + 1]:
+            continue
+        # prominence check
+        if prominence > 0:
+            left_min = arr[max(0, i - distance):i].min()
+            right_min = arr[i + 1:i + 1 + distance].min()
+            if arr[i] - max(left_min, right_min) < prominence:
+                continue
+        peaks.append(i)
+        last_peak = i
+    return peaks, [arr[p] for p in peaks]

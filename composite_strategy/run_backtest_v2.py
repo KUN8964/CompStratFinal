@@ -27,7 +27,7 @@ from strategies.grid_trading import GridTradingStrategy
 from strategies.rsi_mean_reversion import RsiMeanReversionStrategy
 from config import default_config
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=FutureWarning, module="pandas")
 matplotlib.use("Agg")
 
 for _cjk in [
@@ -246,15 +246,24 @@ class BacktestRunnerV2:
 
         # 计算 V2 资金利用率
         total_days = len(common_idx)
+        # 合并 V1 交易记录
+        all_trades_df = pd.concat([t for t in all_trades if not t.empty]) if any(not t.empty for t in all_trades) else pd.DataFrame()
+        # V1 持仓天数：统计所有V1交易覆盖的唯一交易日
+        if not all_trades_df.empty and "date_in" in all_trades_df.columns:
+            v1_invested = len(set().union(*[
+                set(pd.date_range(row["date_in"], row["date_out"]))
+                for _, row in all_trades_df.iterrows()
+                if pd.notna(row["date_in"]) and pd.notna(row["date_out"])
+            ]))
+        else:
+            v1_invested = 0
         # V2 补充策略的持仓天数
         supp_invested = sum(s["invested_days"] for s in supp_stats)
-        v1_invested = 985   # 来自之前的分析
         # 合并后的有效持仓天数（近似）
         v2_invested = min(total_days, v1_invested + supp_invested // 2)
         v2_invested_pct = round(v2_invested / total_days * 100, 1)
         v2_idle_pct = round(100 - v2_invested_pct, 1)
 
-        all_trades_df = pd.concat([t for t in all_trades if not t.empty]) if any(not t.empty for t in all_trades) else pd.DataFrame()
         total_trades_v2 = len(all_trades_df) + len(supp_trades)
         supp_trades_df = pd.DataFrame(supp_trades)
         all_trades_v2_df = pd.concat(

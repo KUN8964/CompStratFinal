@@ -24,7 +24,8 @@ from strategies.alt_obv_short import AltObvShortStrategy
 from config import default_config
 
 # --- Setup ---
-warnings.filterwarnings("ignore")
+# 抑制已知且无影响的警告，而非全局忽略
+warnings.filterwarnings("ignore", category=FutureWarning, module="pandas")
 matplotlib.use("Agg")
 
 # --- Font Setup ---
